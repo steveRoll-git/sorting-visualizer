@@ -10,6 +10,7 @@ local values
 local lastIndexes = {}
 local runner
 local finished
+local finishAnim
 
 local currentAlgoIndex = 1
 local currentAlgo
@@ -59,7 +60,7 @@ local function renderSound()
 
           -- waveform
           --local phi = math.sin(v.phase * math.pi * 2) -- sine wave
-          local phi = v.phase < 0.5 and -1.0 or 1.0     -- square wave
+          local phi = v.phase < 0.5 and -1.0 or 1.0 -- square wave
 
           smp = smp + phi * amp
           v.phase = (v.phase + v.pitch / samplerate) % 1.0
@@ -91,6 +92,7 @@ local function initialize(algo)
 
   runner = coroutine.create(algo.func)
   finished = false
+  finishAnim = nil
   coroutine.resume(runner, {
     length = numValues,
     read = function(i)
@@ -120,6 +122,14 @@ function love.update(dt)
       end
     end
     finished = coroutine.status(runner) == "dead"
+    if finished and not finishAnim then
+      finishAnim = 1
+    end
+  end
+
+  if finished and finishAnim <= numValues then
+    triggerSound(values[finishAnim], numValues)
+    finishAnim = finishAnim + 1
   end
 
   while qsource:getFreeBufferCount() > 0 do
@@ -152,7 +162,7 @@ function love.draw()
     for index, value in ipairs(values) do
       lg.push()
       lg.translate((index - 1) * barWidth, lg.getHeight())
-      if not finished and lastIndexes[index] then
+      if (not finished and lastIndexes[index]) or finishAnim == index then
         lg.setColor(1, 0, 0)
       else
         lg.setColor(1, 1, 1)
