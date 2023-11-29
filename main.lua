@@ -24,8 +24,9 @@ local voice = {} -- list of playing sounds
 
 -- call this in the sorting code
 local function triggerSound(val, maxval)
-  local norm = (val / maxval)                   -- [0,1]
-  local pitch = 440.00 * (2 ^ (norm * 12/12))   -- restrict to one octave, but it does simplify, unless i messed it up
+  local norm = ((val - 1) / (maxval - 1)))      -- [0,1]
+  norm = norm * 12                              -- restrict all values to one octave
+  local pitch = 440.00 * (2 ^ (norm / 12))   -- restrict to one octave, but it does simplify, unless i messed it up
   local new = {
     phase   = love.math.random() * 2 * math.pi, -- this helps with lots of overlapping sounds
     pitch   = pitch,                            -- pitch of the sound, when sorted, it should sound neat and in order
