@@ -24,14 +24,15 @@ local voice = {} -- list of playing sounds
 
 -- call this in the sorting code
 local function triggerSound(val, maxval)
-  local norm = (val / maxval)                   -- [0,1]
-  local pitch = 220 + 2 ^ (norm * 12 / 12)      -- restrict to one octave, but it does simplify, unless i messed it up
+  local norm = ((val - 1) / (maxval - 1))       -- [0,1]
+  norm = norm * 12                              -- restrict all values to one octave
+  local pitch = 440.00 * (2 ^ (norm / 12))      -- restrict to one octave, but it does simplify, unless i messed it up
   local new = {
     phase   = love.math.random() * 2 * math.pi, -- this helps with lots of overlapping sounds
     pitch   = pitch,                            -- pitch of the sound, when sorted, it should sound neat and in order
     active  = true,                             -- if set to false, it won't play, can get reused
-    length  = 0.5,                              -- duration of sound in seconds
-    counter = 0.0
+    length  = 0.04,                             -- duration of sound in seconds
+    counter = 0.0                               -- internals
   }
   for i, v in ipairs(voice) do
     if not v.active then
@@ -46,19 +47,27 @@ end
 local function renderSound()
   for i = 0, sounddata:getSampleCount() - 1 do
     local smp = 0.0
-    for _, v in ipairs(voice) do
+    for j, v in ipairs(voice) do
       if v.active then
-        v.counter = v.counter - 1 / samplerate
+        voice[j].counter = v.counter + 1 / samplerate
         if v.counter >= v.length then
-          v.active = false
+          voice[j].active = false
         else
-          local amp = math.sin(v.counter / v.length * math.pi) -- nice curve for fading in and out the sound
-          local phi = math.sin(v.phase * math.pi * 2 / samplerate)
+          -- amplitude
+          local amp = math.sin(v.counter / v.length * math.pi) -- sinusoidal envelope
+          --local amp = (v.counter / v.length) < 0.5 and (v.counter / v.length * 2) or ((0.5 - (v.counter / v.length)) * 2) -- triangular envelope, not the best
+
+          -- waveform
+          --local phi = math.sin(v.phase * math.pi * 2) -- sine wave
+          local phi = v.phase < 0.5 and -1.0 or 1.0     -- square wave
+
           smp = smp + phi * amp
-          v.phase = v.phase + v.pitch / samplerate
+          v.phase = (v.phase + v.pitch / samplerate) % 1.0
         end
       end
     end
+    smp = smp / (numValues / 2) -- attenuation to keep sound volume consistent
+    smp = math.max(math.min(smp, 1.0), -1.0)
     sounddata:setSample(i, smp)
   end
   return sounddata
@@ -86,7 +95,7 @@ local function initialize(algo)
     length = numValues,
     read = function(i)
       lastIndexes[i] = true
-      triggerSound(i, numValues)
+      triggerSound(values[i], numValues)
       coroutine.yield()
       return values[i]
     end,
@@ -113,7 +122,7 @@ function love.update(dt)
     finished = coroutine.status(runner) == "dead"
   end
 
-  if qsource:getFreeBufferCount() > 0 then
+  while qsource:getFreeBufferCount() > 0 do
     qsource:queue(renderSound())
     qsource:play()
   end
